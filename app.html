@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>WhatsApp Chat Viewer — Private & Offline</title>
+<style>
+  /* (same styles as before, plus new modal-like panel for name selection) */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0a0a;
+    --header-bg: #161616;
+    --me-bubble: #1a3a2a;
+    --me-border: #2d6b48;
+    --them-bubble: #1e1e1e;
+    --them-border: #2a2a2a;
+    --me-text: #d4edd8;
+    --them-text: #e0e0e0;
+    --timestamp: #666;
+    --date-bg: #1a1a1a;
+    --date-text: #888;
+    --system-text: #555;
+    --media-color: #4a8a62;
+    --link-color: #6baaff;
+    --accent: #3d8a5c;
+  }
+  body {
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--them-text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .header {
+    background: var(--header-bg);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid #1f1f1f;
+    flex-shrink: 0;
+  }
+  .avatar {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2d6b48, #1a3a2a);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .header-info h1 { font-size: 16px; font-weight: 600; color: #e8e8e8; }
+  .header-info p { font-size: 12px; color: var(--timestamp); margin-top: 1px; }
+  .header-right { margin-left: auto; font-size: 12px; color: var(--timestamp); }
+  .toolbar {
+    background: #111;
+    padding: 10px 16px;
+    border-bottom: 1px solid #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .date-picker {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    flex: 2;
+  }
+  .export-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .export-buttons button {
+    background: #2a2a2a;
+    border: none;
+    border-radius: 20px;
+    padding: 6px 12px;
+    color: #bbb;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .export-buttons button:hover { background: #3a3a3a; color: white; }
+  .date-picker input {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 20px;
+    padding: 6px 12px;
+    color: #ddd;
+    font-size: 13px;
+    flex: 1;
+    min-width: 140px;
+  }
+  .date-picker button {
+    background: #1a3a2a;
+    border: none;
+    border-radius: 20px;
+    padding: 6px 14px;
+    color: #7dd4a0;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .date-picker button:hover { background: #2a4a3a; }
+  .date-picker button:last-child { background: #2a1a1a; color: #ff9e8f; }
+  .year-jump {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .year-label {
+    font-size: 11px;
+    color: #555;
+    margin-right: 2px;
+    white-space: nowrap;
+  }
+  .year-btn {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 14px;
+    color: #888;
+    font-size: 12px;
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+  .year-btn:hover { background: #222; border-color: var(--accent); color: #bbb; }
+  .year-btn.active { background: #1a3a2a; border-color: var(--accent); color: #7dd4a0; font-weight: 600; }
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .search-bar input {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 20px;
+    padding: 7px 14px;
+    color: #ddd;
+    font-size: 13px;
+    outline: none;
+  }
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-count {
+    font-size: 11px;
+    color: #555;
+    white-space: nowrap;
+    min-width: 60px;
+    text-align: right;
+  }
+  .search-nav {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .search-nav button {
+    background: #2a2a2a;
+    border: none;
+    border-radius: 16px;
+    padding: 4px 8px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .search-nav button:hover:not(:disabled) { background: #3a3a3a; color: white; }
+  .search-nav button:disabled { opacity: 0.3; cursor: default; }
+  .search-index {
+    font-size: 11px;
+    color: #888;
+    min-width: 45px;
+    text-align: center;
+  }
+  .chat-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 12px;
+  }
+  .date-sep {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 12px;
+  }
+  .date-sep::before, .date-sep::after {
+    content: ''; flex: 1; height: 1px; background: #1e1e1e;
+  }
+  .date-sep span {
+    font-size: 11px;
+    color: var(--date-text);
+    background: var(--date-bg);
+    padding: 3px 12px;
+    border-radius: 10px;
+    border: 1px solid #1e1e1e;
+  }
+  .year-anchor {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0 16px;
+  }
+  .year-anchor::before, .year-anchor::after {
+    content: ''; flex: 1; height: 1px; background: #2a2a2a;
+  }
+  .year-anchor span {
+    font-size: 12px;
+    color: #7dd4a0;
+    background: #1a3a2a;
+    padding: 4px 16px;
+    border-radius: 12px;
+    border: 1px solid #2d6b48;
+    font-weight: 600;
+  }
+  .msg-row {
+    display: flex;
+    margin-bottom: 3px;
+    padding: 0 4px;
+  }
+  .msg-row.me { justify-content: flex-end; }
+  .msg-row.them { justify-content: flex-start; }
+  .msg-row.system { justify-content: center; }
+  .msg-row.hidden { display: none; }
+  .bubble {
+    max-width: 72%;
+    padding: 8px 12px 6px;
+    border-radius: 16px;
+    word-break: break-word;
+    line-height: 1.45;
+  }
+  .msg-row.me .bubble {
+    background: var(--me-bubble);
+    border: 1px solid var(--me-border);
+    color: var(--me-text);
+    border-bottom-right-radius: 4px;
+  }
+  .msg-row.them .bubble {
+    background: var(--them-bubble);
+    border: 1px solid var(--them-border);
+    color: var(--them-text);
+    border-bottom-left-radius: 4px;
+  }
+  .bubble-text { font-size: 14px; }
+  .bubble-time {
+    font-size: 10px;
+    color: var(--timestamp);
+    text-align: right;
+    margin-top: 3px;
+    opacity: 0.8;
+  }
+  .media-msg {
+    font-size: 13px;
+    font-style: italic;
+    color: var(--media-color);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .media-msg::before { content: '📎'; font-style: normal; font-size: 12px; }
+  .bubble-text a { color: var(--link-color); text-decoration: none; }
+  .system-msg {
+    font-size: 11px;
+    color: var(--system-text);
+    text-align: center;
+    padding: 3px 14px;
+    max-width: 85%;
+  }
+  .highlight {
+    background: rgba(255, 220, 50, 0.25);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  .footer {
+    background: var(--header-bg);
+    padding: 8px 16px;
+    text-align: center;
+    font-size: 11px;
+    color: #2a2a2a;
+    border-top: 1px solid #1a1a1a;
+    flex-shrink: 0;
+  }
+  .date-notice {
+    position: fixed;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a3a2a;
+    color: #7dd4a0;
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 12px;
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+  .file-load-area {
+    background: #1a1a1a;
+    margin: 12px;
+    padding: 16px;
+    border-radius: 24px;
+    text-align: center;
+    border: 1px dashed #2a2a2a;
+    cursor: pointer;
+  }
+  .file-load-area label {
+    display: inline-block;
+    background: #1a3a2a;
+    padding: 8px 20px;
+    border-radius: 30px;
+    font-size: 13px;
+    color: #7dd4a0;
+    cursor: pointer;
+  }
+  .file-load-area input { display: none; }
+  .file-load-area.drag-over { border-color: #7dd4a0; background: #1e2a1e; }
+  /* Name selection panel */
+  .name-selector-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .name-selector-card {
+    background: #1e1e1e;
+    border-radius: 28px;
+    padding: 24px;
+    width: 85%;
+    max-width: 300px;
+    text-align: center;
+    border: 1px solid #2a2a2a;
+  }
+  .name-selector-card h3 {
+    margin-bottom: 16px;
+    color: #7dd4a0;
+  }
+  .name-selector-card select {
+    background: #2a2a2a;
+    color: #ddd;
+    border: 1px solid #3a3a3a;
+    border-radius: 24px;
+    padding: 10px 16px;
+    width: 100%;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .name-selector-card button {
+    background: #1a3a2a;
+    border: none;
+    border-radius: 24px;
+    padding: 8px 20px;
+    color: #7dd4a0;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  @media print {
+    body { background: white; }
+    .toolbar, .footer, .date-notice, .export-buttons, .date-picker button, .search-bar input, .year-jump, .file-load-area, .search-nav, .name-selector-overlay { display: none; }
+    .msg-row.me .bubble { background: #dcf8c6; border: none; color: black; }
+    .msg-row.them .bubble { background: #f0f0f0; border: none; color: black; }
+    .bubble-time { color: #666; }
+    .header { background: #075e54; color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+  @media (max-width: 600px) {
+    .bubble { max-width: 88%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="avatar">💬</div>
+  <div class="header-info">
+    <h1>WhatsApp Chat</h1>
+    <p id="date-range">No chat loaded</p>
+  </div>
+  <div class="header-right" id="msg-count">—</div>
+</div>
+
+<div class="toolbar" id="toolbar" style="display: none;">
+  <div class="row-actions">
+    <div class="date-picker">
+      <input type="date" id="calendar-input">
+      <button id="date-go-btn">📅 Go to date</button>
+      <button id="date-clear-btn">✖ Show all</button>
+    </div>
+    <div class="export-buttons">
+      <button id="pdf-btn">📄 Save as PDF</button>
+      <button id="download-html-btn">💾 Download HTML</button>
+    </div>
+  </div>
+  <div class="year-jump">
+    <span class="year-label">Jump to →</span>
+    <div id="year-buttons"></div>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="Search messages..." oninput="filterMessages(this.value)">
+    <span class="search-count" id="search-count"></span>
+    <div class="search-nav" id="search-nav" style="display: none;">
+      <button id="search-prev" title="Previous match">⬆</button>
+      <span class="search-index" id="search-index">0/0</span>
+      <button id="search-next" title="Next match">⬇</button>
+    </div>
+  </div>
+</div>
+
+<div class="chat-container" id="chat">
+  <div class="file-load-area" id="fileDropArea">
+    <label for="chatFileInput">📂 Load WhatsApp Chat (.txt)</label>
+    <input type="file" id="chatFileInput" accept=".txt">
+    <div style="font-size: 12px; margin-top: 8px; color: #555;">or drag & drop file here</div>
+  </div>
+</div>
+<div class="footer">private · offline · yours</div>
+<div id="date-notice" class="date-notice"></div>
+
+<script>
+  // --------------------------------------------------------------
+  // Full parser and chat logic (same as before)
+  // --------------------------------------------------------------
+  let MESSAGES = [], allDateTimestamps = [], currentDateFilter = null;
+  let yearButtonsEl, dateInput, dateGoBtn, dateClearBtn, searchInput, toolbar;
+  let currentChatFileName = null;
+  let rawChatContent = null; // store raw content to re-render when name changes
+
+  function parseFlexibleLine(line) {
+    line = line.replace(/\u200e/g, '').trim();
+    if (!line) return null;
+    let match = line.match(/^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),\s*(\d{1,2}\.\d{2}\.\d{2})\]\s+([^:]+):\s*(.*)$/);
+    if (match) return { date: match[1], time: match[2].replace(/\./g, ':'), sender: match[3].trim(), text: match[4] };
+    match = line.match(/^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),\s*(\d{1,2}:\d{2}:\d{2})\]\s+([^:]+):\s*(.*)$/);
+    if (match) return { date: match[1], time: match[2], sender: match[3].trim(), text: match[4] };
+    match = line.match(/^(\d{1,2}\/\d{1,2}\/\d{4}),\s*(\d{1,2}:\d{2})\s*-\s*([^:]+):\s*(.*)$/);
+    if (match) return { date: match[1], time: match[2], sender: match[3].trim(), text: match[4] };
+    match = line.match(/^(\d{1,2}\/\d{1,2}\/\d{2}),\s*(\d{1,2}:\d{2})\s*-\s*([^:]+):\s*(.*)$/);
+    if (match) return { date: match[1], time: match[2], sender: match[3].trim(), text: match[4] };
+    return null;
+  }
+
+  function dateToTimestamp(dateStr) {
+    let parts = dateStr.split('/');
+    if (parts.length !== 3) return NaN;
+    let d = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, y = parseInt(parts[2], 10);
+    if (y < 100) y += (y < 30 ? 2000 : 1900);
+    return new Date(y, m, d).getTime();
+  }
+
+  function parseYearFromDate(dateStr) {
+    let parts = dateStr.split('/');
+    let y = parseInt(parts[2], 10);
+    if (y < 100) y += (y < 30 ? 2000 : 1900);
+    return y;
+  }
+
+  function formatDateLabel(dateStr) {
+    const [d, m, y] = dateStr.split('/');
+    let year = parseInt(y, 10);
+    if (year < 100) year += (year < 30 ? 2000 : 1900);
+    const date = new Date(year, parseInt(m,10)-1, parseInt(d,10));
+    return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function linkify(text) {
+    return text.replace(/(https?:\/\/[^\s]+)/g, url => `<a href="${url}" target="_blank" rel="noopener">${url}</a>`);
+  }
+
+  function mediaLabel(filename) {
+    if (/PHOTO/i.test(filename)) return 'Photo';
+    if (/VIDEO/i.test(filename)) return 'Video';
+    if (/AUDIO|PTT/i.test(filename)) return 'Audio';
+    if (/STICKER/i.test(filename)) return 'Sticker';
+    return 'File';
+  }
+
+  function escapeHtml(t) {
+    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  const SYSTEM_PATTERNS = [/end-to-end encrypted/i, /Messages and calls are now/i, /This business is now using/i, /Voice call/i, /Missed voice call/i, /Security code changed/i];
+  function isSystem(text) { return SYSTEM_PATTERNS.some(p => p.test(text)); }
+
+  function parseChatText(rawText, myName) {
+    const lines = rawText.split(/\r?\n/);
+    const msgs = [];
+    for (let line of lines) {
+      const parsed = parseFlexibleLine(line);
+      if (parsed) {
+        msgs.push({
+          date: parsed.date,
+          time: parsed.time,
+          sender: parsed.sender,
+          text: parsed.text,
+          year: parseYearFromDate(parsed.date),
+          timestamp: dateToTimestamp(parsed.date)
+        });
+      }
+    }
+    return { msgs, myName };
+  }
+
+  function buildChat() {
+    if (!MESSAGES.length) return;
+    const chatEl = document.getElementById('chat');
+    const frag = document.createDocumentFragment();
+    let lastDateStr = null, lastYear = null;
+    for (let msg of MESSAGES) {
+      const isMe = msg.sender === window.myName;
+      const sys = isSystem(msg.text);
+      if (msg.year !== lastYear) {
+        const anchor = document.createElement('div');
+        anchor.className = 'year-anchor';
+        anchor.innerHTML = `<span>${msg.year}</span>`;
+        anchor.id = `year-${msg.year}`;
+        frag.appendChild(anchor);
+        lastYear = msg.year;
+      }
+      if (msg.date !== lastDateStr) {
+        const sep = document.createElement('div');
+        sep.className = 'date-sep';
+        sep.innerHTML = `<span>${formatDateLabel(msg.date)}</span>`;
+        frag.appendChild(sep);
+        lastDateStr = msg.date;
+      }
+      const row = document.createElement('div');
+      row.className = `msg-row ${sys ? 'system' : isMe ? 'me' : 'them'}`;
+      row.dataset.year = msg.year;
+      row.dataset.text = msg.text.toLowerCase();
+      row.dataset.date = msg.date;
+      row.dataset.timestamp = msg.timestamp;
+      if (sys) {
+        const bubble = document.createElement('div');
+        bubble.className = 'system-msg';
+        bubble.textContent = msg.text;
+        row.appendChild(bubble);
+      } else {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        const attachMatch = msg.text.match(/^<attached: (.+)>(.*)$/);
+        if (attachMatch) {
+          const label = mediaLabel(attachMatch[1]);
+          const extra = attachMatch[2] ? attachMatch[2].trim() : '';
+          const mediaDiv = document.createElement('div');
+          mediaDiv.className = 'bubble-text media-msg';
+          mediaDiv.textContent = label + (extra ? ` — ${extra}` : '');
+          bubble.appendChild(mediaDiv);
+        } else {
+          const textDiv = document.createElement('div');
+          textDiv.className = 'bubble-text';
+          textDiv.innerHTML = linkify(escapeHtml(msg.text));
+          bubble.appendChild(textDiv);
+        }
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'bubble-time';
+        let displayTime = msg.time.length > 5 ? msg.time.slice(0,5) : msg.time;
+        timeDiv.textContent = displayTime;
+        bubble.appendChild(timeDiv);
+        row.appendChild(bubble);
+      }
+      frag.appendChild(row);
+    }
+    chatEl.innerHTML = '';
+    chatEl.appendChild(frag);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function clearSearch(resetNav = true) {
+    document.querySelectorAll('.msg-row').forEach(r => r.classList.remove('hidden'));
+    document.querySelectorAll('.date-sep, .year-anchor').forEach(el => el.style.display = '');
+    document.getElementById('search-count').textContent = '';
+    document.querySelectorAll('.bubble-text').forEach(el => {
+      if (el.querySelector('.highlight')) el.innerHTML = linkify(escapeHtml(el.textContent));
+    });
+    if (resetNav) {
+      document.getElementById('search-nav').style.display = 'none';
+      currentMatches = [];
+      currentMatchIdx = -1;
+    }
+  }
+
+  let currentMatches = [];
+  let currentMatchIdx = -1;
+
+  function updateSearchNav() {
+    const navDiv = document.getElementById('search-nav');
+    const indexSpan = document.getElementById('search-index');
+    const prevBtn = document.getElementById('search-prev');
+    const nextBtn = document.getElementById('search-next');
+    if (!navDiv) return;
+    if (currentMatches.length === 0) {
+      navDiv.style.display = 'none';
+      return;
+    }
+    navDiv.style.display = 'flex';
+    indexSpan.textContent = `${currentMatchIdx+1}/${currentMatches.length}`;
+    prevBtn.disabled = (currentMatchIdx <= 0);
+    nextBtn.disabled = (currentMatchIdx >= currentMatches.length-1);
+  }
+
+  function scrollToMatch(index) {
+    if (index < 0 || index >= currentMatches.length) return;
+    const row = currentMatches[index];
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.style.transition = 'background 0.2s';
+    const originalBg = row.style.background;
+    row.style.background = '#2a3a2a';
+    setTimeout(() => { row.style.background = originalBg; }, 500);
+  }
+
+  function goPrevMatch() {
+    if (currentMatches.length === 0) return;
+    let newIdx = currentMatchIdx - 1;
+    if (newIdx < 0) newIdx = 0;
+    currentMatchIdx = newIdx;
+    scrollToMatch(currentMatchIdx);
+    updateSearchNav();
+  }
+
+  function goNextMatch() {
+    if (currentMatches.length === 0) return;
+    let newIdx = currentMatchIdx + 1;
+    if (newIdx >= currentMatches.length) newIdx = currentMatches.length - 1;
+    currentMatchIdx = newIdx;
+    scrollToMatch(currentMatchIdx);
+    updateSearchNav();
+  }
+
+  function doSearch(term) {
+    document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+    if (currentDateFilter) { if (dateInput) dateInput.value = ''; filterByDate(null); }
+    if (!term) {
+      clearSearch(true);
+      document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+      return;
+    }
+    const lower = term.toLowerCase();
+    let count = 0;
+    const matchRows = [];
+    document.querySelectorAll('.msg-row').forEach(row => {
+      const text = row.dataset.text || '';
+      const matches = text.includes(lower);
+      row.classList.toggle('hidden', !matches);
+      if (matches) {
+        count++;
+        matchRows.push(row);
+        const textEl = row.querySelector('.bubble-text');
+        if (textEl && !textEl.classList.contains('media-msg')) {
+          const original = textEl.textContent;
+          const lowerOrig = original.toLowerCase();
+          const idx = lowerOrig.indexOf(lower);
+          if (idx !== -1) {
+            const before = escapeHtml(original.slice(0, idx));
+            const match = escapeHtml(original.slice(idx, idx + lower.length));
+            const after = escapeHtml(original.slice(idx + lower.length));
+            textEl.innerHTML = linkify(before + `<span class="highlight">${match}</span>` + after);
+          }
+        }
+      }
+    });
+    document.querySelectorAll('.date-sep, .year-anchor').forEach(el => {
+      let next = el.nextElementSibling, has = false;
+      while (next && !next.classList.contains('date-sep') && !next.classList.contains('year-anchor')) {
+        if (next.classList.contains('msg-row') && !next.classList.contains('hidden')) { has = true; break; }
+        next = next.nextElementSibling;
+      }
+      el.style.display = has ? '' : 'none';
+    });
+    document.getElementById('search-count').textContent = count > 0 ? `${count} found` : 'not found';
+    currentMatches = matchRows;
+    if (currentMatches.length > 0) {
+      currentMatchIdx = 0;
+      scrollToMatch(0);
+    } else {
+      currentMatchIdx = -1;
+    }
+    updateSearchNav();
+  }
+
+  let searchTimeout;
+  function filterMessages(val) {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => doSearch(val.trim()), 200);
+  }
+
+  function filterByDate(selectedTimestamp) {
+    if (searchInput) searchInput.value = '';
+    clearSearch(true);
+    const rows = document.querySelectorAll('.msg-row');
+    const dateSeparators = document.querySelectorAll('.date-sep');
+    const yearAnchors = document.querySelectorAll('.year-anchor');
+    if (!selectedTimestamp) {
+      rows.forEach(r => r.classList.remove('hidden'));
+      dateSeparators.forEach(sep => sep.style.display = '');
+      yearAnchors.forEach(anchor => anchor.style.display = '');
+      document.getElementById('search-count').textContent = '';
+      document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+      currentDateFilter = null;
+      return;
+    }
+    let matchCount = 0;
+    rows.forEach(row => {
+      const matches = (parseInt(row.dataset.timestamp) === selectedTimestamp);
+      row.classList.toggle('hidden', !matches);
+      if (matches) matchCount++;
+    });
+    dateSeparators.forEach(sep => {
+      let next = sep.nextElementSibling, has = false;
+      while (next && !next.classList.contains('date-sep') && !next.classList.contains('year-anchor')) {
+        if (next.classList.contains('msg-row') && !next.classList.contains('hidden')) { has = true; break; }
+        next = next.nextElementSibling;
+      }
+      sep.style.display = has ? '' : 'none';
+    });
+    yearAnchors.forEach(anchor => {
+      let next = anchor.nextElementSibling, has = false;
+      while (next && !next.classList.contains('year-anchor')) {
+        if (next.classList.contains('msg-row') && !next.classList.contains('hidden')) { has = true; break; }
+        next = next.nextElementSibling;
+      }
+      anchor.style.display = has ? '' : 'none';
+    });
+    document.getElementById('search-count').textContent = matchCount ? `${matchCount} pesan` : 'Tidak ada pesan';
+    document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+    if (matchCount) {
+      const firstVisible = document.querySelector('.msg-row:not(.hidden)');
+      if (firstVisible) firstVisible.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    currentMatches = [];
+    currentMatchIdx = -1;
+    updateSearchNav();
+  }
+
+  function jumpToYear(year) {
+    if (dateInput) dateInput.value = '';
+    filterByDate(null);
+    if (searchInput) searchInput.value = '';
+    clearSearch(true);
+    document.querySelectorAll('.year-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.year) === year));
+    const anchor = document.getElementById(`year-${year}`);
+    if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function findNearestDateWithMessages(target) {
+    if (!allDateTimestamps.length) return null;
+    let left = 0, right = allDateTimestamps.length-1;
+    while (left <= right) {
+      const mid = Math.floor((left+right)/2);
+      if (allDateTimestamps[mid] === target) return target;
+      if (allDateTimestamps[mid] < target) left = mid+1;
+      else right = mid-1;
+    }
+    if (left === 0) return allDateTimestamps[0];
+    if (left === allDateTimestamps.length) return allDateTimestamps[allDateTimestamps.length-1];
+    const before = allDateTimestamps[left-1], after = allDateTimestamps[left];
+    return (target - before <= after - target) ? before : after;
+  }
+
+  function timestampToYMD(ts) {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function showNotice(msg, isError = false) {
+    const notice = document.getElementById('date-notice');
+    notice.textContent = msg;
+    notice.style.background = isError ? '#3a2a2a' : '#1a3a2a';
+    notice.style.color = isError ? '#ff9e8f' : '#7dd4a0';
+    notice.style.opacity = '1';
+    setTimeout(() => notice.style.opacity = '0', 3000);
+  }
+
+  // Name selection UI
+  function showNameSelector(senderList, onSelect) {
+    const overlay = document.createElement('div');
+    overlay.className = 'name-selector-overlay';
+    overlay.innerHTML = `
+      <div class="name-selector-card">
+        <h3>👤 Who are you?</h3>
+        <select id="name-select">
+          ${senderList.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
+        </select>
+        <button id="confirm-name">Continue</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const confirmBtn = overlay.querySelector('#confirm-name');
+    const selectEl = overlay.querySelector('#name-select');
+    confirmBtn.addEventListener('click', () => {
+      const selected = selectEl.value;
+      overlay.remove();
+      onSelect(selected);
+    });
+  }
+
+  function loadChatFromText(content, fileName) {
+    rawChatContent = content;
+    currentChatFileName = fileName;
+    // First, parse to get unique senders (excluding system messages)
+    const lines = content.split(/\r?\n/);
+    const sendersSet = new Set();
+    for (let line of lines) {
+      const parsed = parseFlexibleLine(line);
+      if (parsed && !isSystem(parsed.text) && !parsed.sender.includes("‎") && parsed.sender !== "WhatsApp") {
+        sendersSet.add(parsed.sender);
+      }
+    }
+    let senderList = Array.from(sendersSet).filter(s => !/end-to-end|encrypted/i.test(s));
+    if (senderList.length === 0) {
+      alert("No valid senders found. Is this a WhatsApp chat?");
+      return false;
+    }
+    // Check localStorage for previously saved name for this file
+    let savedName = localStorage.getItem('myName_' + fileName);
+    if (savedName && senderList.includes(savedName)) {
+      applyChatWithName(savedName, content, fileName);
+    } else {
+      showNameSelector(senderList, (selectedName) => {
+        localStorage.setItem('myName_' + fileName, selectedName);
+        applyChatWithName(selectedName, content, fileName);
+      });
+    }
+    return true;
+  }
+
+  function applyChatWithName(myName, content, fileName) {
+    window.myName = myName;
+    const { msgs } = parseChatText(content, myName);
+    if (msgs.length === 0) {
+      alert("No valid messages found after parsing.");
+      return;
+    }
+    MESSAGES = msgs;
+    allDateTimestamps = [...new Set(MESSAGES.map(m => m.timestamp))].sort((a,b)=>a-b);
+    const firstDate = new Date(MESSAGES[0].timestamp);
+    const lastDate = new Date(MESSAGES[MESSAGES.length-1].timestamp);
+    const fmt = d => d.toLocaleDateString('id-ID', { month:'short', year:'numeric' });
+    document.getElementById('date-range').textContent = `${fmt(firstDate)} – ${fmt(lastDate)}`;
+    document.getElementById('msg-count').textContent = `${MESSAGES.length} pesan`;
+    document.querySelector('.header-info h1').textContent = fileName.replace(/\.txt$/i, '') || "WhatsApp Chat";
+    const years = [...new Set(MESSAGES.map(m => m.year))].sort();
+    yearButtonsEl = document.getElementById('year-buttons');
+    yearButtonsEl.innerHTML = '';
+    for (let yr of years) {
+      const btn = document.createElement('button');
+      btn.className = 'year-btn';
+      btn.textContent = yr;
+      btn.dataset.year = yr;
+      btn.onclick = () => jumpToYear(yr);
+      yearButtonsEl.appendChild(btn);
+    }
+    buildChat();
+    toolbar.style.display = 'flex';
+    const dropArea = document.getElementById('fileDropArea');
+    if (dropArea) dropArea.style.display = 'none';
+    showNotice(`Loaded ${MESSAGES.length} messages. You are "${myName}"`, false);
+  }
+
+  function handleFile(file) {
+    if (!file || !file.name.endsWith('.txt')) { alert("Please select a .txt file from WhatsApp"); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => loadChatFromText(e.target.result, file.name);
+    reader.onerror = () => alert("Error reading file");
+    reader.readAsText(file, "UTF-8");
+  }
+
+  // Export functions
+  function saveAsPDF() { window.print(); }
+  function downloadHTML() {
+    const htmlContent = document.documentElement.outerHTML;
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = 'whatsapp-chat-export.html';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showNotice('Chat saved as HTML file', false);
+  }
+
+  // Event listeners
+  const dropArea = document.getElementById('fileDropArea');
+  dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+  dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'));
+  dropArea.addEventListener('drop', e => { e.preventDefault(); dropArea.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+  document.getElementById('chatFileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+  toolbar = document.getElementById('toolbar');
+  dateInput = document.getElementById('calendar-input');
+  dateGoBtn = document.getElementById('date-go-btn');
+  dateClearBtn = document.getElementById('date-clear-btn');
+  searchInput = document.getElementById('search-input');
+
+  if (dateGoBtn) {
+    dateGoBtn.addEventListener('click', () => {
+      let selectedDate = dateInput.value;
+      if (!selectedDate) { alert('Pilih tanggal'); return; }
+      const [year, month, day] = selectedDate.split('-').map(Number);
+      const targetTimestamp = new Date(year, month-1, day).getTime();
+      const exactMatch = allDateTimestamps.some(ts => ts === targetTimestamp);
+      if (exactMatch) {
+        filterByDate(targetTimestamp);
+        showNotice(`Menampilkan chat untuk ${selectedDate}`);
+      } else {
+        const nearest = findNearestDateWithMessages(targetTimestamp);
+        if (nearest) {
+          const nearestYMD = timestampToYMD(nearest);
+          dateInput.value = nearestYMD;
+          filterByDate(nearest);
+          const formatted = new Date(nearest).toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+          showNotice(`Tidak ada chat pada ${selectedDate}. Menampilkan ${formatted}`);
+        } else showNotice('Tidak ada chat sama sekali', true);
+      }
+    });
+    dateClearBtn.addEventListener('click', () => {
+      dateInput.value = '';
+      filterByDate(null);
+      showNotice('Menampilkan semua chat');
+    });
+  }
+
+  document.getElementById('pdf-btn')?.addEventListener('click', saveAsPDF);
+  document.getElementById('download-html-btn')?.addEventListener('click', downloadHTML);
+  document.getElementById('search-prev')?.addEventListener('click', goPrevMatch);
+  document.getElementById('search-next')?.addEventListener('click', goNextMatch);
+</script>
+</body>
+</html>
